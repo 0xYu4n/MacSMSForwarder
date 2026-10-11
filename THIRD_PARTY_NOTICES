@@ -1,0 +1,19 @@
+Mac短信转发 uses the following open-source software:
+
+imsg (IMsgCore) — https://github.com/openclaw/imsg
+  License: MIT
+
+GRDB.swift — https://github.com/groue/GRDB.swift
+  License: MIT
+
+SQLite.swift — https://github.com/stephencelis/SQLite.swift (via imsg)
+  License: MIT
+
+PhoneNumberKit — https://github.com/marmelroy/PhoneNumberKit (via imsg)
+  License: MIT
+
+Commander — https://github.com/steipete/Commander (via imsg, CLI only)
+  License: MIT
+
+The rule model and channel ideas were inspired by SmsForwarder
+(https://github.com/pppscn/SmsForwarder, BSD-2-Clause); no code was copied.
