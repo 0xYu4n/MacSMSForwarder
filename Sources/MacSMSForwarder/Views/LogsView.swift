@@ -8,7 +8,7 @@ struct LogsView: View {
   @State private var onlyFailures = false
 
   @StateObject private var logs = DBObserver<[ForwardLog]>(initial: []) { db in
-    try ForwardLog.order(Column("id").desc).limit(500).fetchAll(db)
+    try ForwardLog.order(Column("createdAt").desc, Column("id").desc).limit(500).fetchAll(db)
   }
   /// 仍在排队等待重试的任务数
   @StateObject private var pendingCount = DBObserver<Int>(initial: 0) { db in
@@ -66,7 +66,7 @@ struct LogsView: View {
           TableColumn("耗时") { log in
             Text("\(log.durationMs) ms").foregroundStyle(.secondary)
           }
-          .width(60)
+          .width(min: 70, ideal: 84)
           TableColumn("") { log in
             if !log.success, let jobID = log.jobID {
               Button("重试") {

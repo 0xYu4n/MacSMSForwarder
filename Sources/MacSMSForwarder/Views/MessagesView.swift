@@ -10,7 +10,7 @@ struct MessagesView: View {
 
   /// 最近 500 条消息
   @StateObject private var messages = DBObserver<[StoredMessage]>(initial: []) { db in
-    try StoredMessage.order(Column("id").desc).limit(500).fetchAll(db)
+    try StoredMessage.order(Column("date").desc, Column("id").desc).limit(500).fetchAll(db)
   }
 
   /// 按搜索词过滤（号码或正文）

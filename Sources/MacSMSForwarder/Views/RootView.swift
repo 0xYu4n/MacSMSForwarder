@@ -95,6 +95,10 @@ struct RootView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
+    // 截图模式下由程序切换页面
+    .onChange(of: model.requestedPage) { _, page in
+      if let page { selection = page }
+    }
     .alert(
       "数据库错误",
       isPresented: .constant(model.fatalError != nil),

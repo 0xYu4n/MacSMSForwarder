@@ -11,6 +11,7 @@ struct SettingsView: View {
   @AppStorage(SettingsKey.retentionDays) private var retentionDays = 90
   @AppStorage(SettingsKey.region) private var region = "CN"
   @AppStorage(SettingsKey.hideDockIcon) private var hideDockIcon = false
+  @AppStorage(SettingsKey.autoCheckUpdates) private var autoCheckUpdates = true
   @State private var launchAtLogin = LaunchAtLogin.isEnabled
   @State private var launchError: String?
 
@@ -110,7 +111,21 @@ struct SettingsView: View {
       }
 
       Section("关于") {
-        LabeledContent("版本", value: Bundle.main.shortVersion)
+        LabeledContent("版本") {
+          HStack(spacing: 8) {
+            Text("v\(Bundle.main.shortVersion)")
+            if model.checkingUpdate {
+              ProgressView().controlSize(.small)
+            }
+            Button("检查更新") { model.checkForUpdates(userInitiated: true) }
+              .controlSize(.small)
+              .disabled(model.checkingUpdate)
+          }
+        }
+        if let status = model.updateStatus {
+          Text(status).font(.caption).foregroundStyle(.secondary)
+        }
+        Toggle("启动时自动检查更新", isOn: $autoCheckUpdates)
         LabeledContent("本机名称", value: RuleEngine.deviceName)
         Link("GitHub 开源主页", destination: URL(string: "https://github.com/0xYu4n/MacSMSForwarder")!)
         Text("Mac短信转发与 Apple 无任何关联。请勿用于群发或骚扰信息，以免 Apple ID 被限制。")

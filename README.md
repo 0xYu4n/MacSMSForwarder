@@ -24,6 +24,22 @@
 - 📤 **发送**：通过 HTTP API 发送 iMessage，给自动化脚本用，**不花一分短信费**
 - 🔀 **两个功能独立开关**：只要其中一个，就只开一个，对应的系统权限也不用给
 
+## 界面预览
+
+<p align="center">
+  <img src="docs/screenshots/overview.png" width="860" alt="概览">
+</p>
+
+| 消息 | 转发规则 |
+|---|---|
+| <img src="docs/screenshots/messages.png" alt="消息"> | <img src="docs/screenshots/rules.png" alt="转发规则"> |
+| **转发通道** | **转发日志** |
+| <img src="docs/screenshots/channels.png" alt="转发通道"> | <img src="docs/screenshots/logs.png" alt="转发日志"> |
+| **HTTP API** | **设置** |
+| <img src="docs/screenshots/api.png" alt="HTTP API"> | <img src="docs/screenshots/settings.png" alt="设置"> |
+
+> 截图中的号码与内容均为演示数据，可用 `scripts/screenshots.sh` 重新生成。
+
 ## 功能
 
 | | |
@@ -36,6 +52,7 @@
 | **HTTP API** | 发送、查询消息与送达状态、SSE 实时事件流；Bearer Token 鉴权，默认仅本机访问 |
 | **后台发送** | 通过 Apple Events 驱动「信息」App，不模拟点击、**不需要关闭 SIP** |
 | **省心常驻** | 菜单栏常驻、开机自启、阻止休眠、可隐藏程序坞图标、数据自动清理 |
+| **版本更新** | 启动时自动检查 GitHub 最新版本（也可在「设置 › 关于」手动检查），有新版本时提示并一键打开下载页 |
 
 ### 支持的转发通道
 
@@ -74,6 +91,8 @@
    |---|---|---|
    | 接收转发 | 完全磁盘访问权限 | 系统设置 › 隐私与安全性 › 完全磁盘访问权限 › `+` 添加本 App |
    | 发送 | 自动化 › 信息 | 首次发送时系统弹窗询问，点「允许」 |
+
+以后有新版本发布时，App 启动后会自动提示，点「前往下载」即可打开下载页；不想更新某个版本可以选择「跳过此版本」。
 
 > ⚠️ 由于应用未签名，**更新版本后系统可能会失效「完全磁盘访问权限」**。在列表中选中旧条目点 `−` 删除，再重新添加即可。
 
@@ -188,6 +207,7 @@ cd MacSMSForwarder
 scripts/build-app.sh --run              # 编译、组装 dist/Mac短信转发.app 并启动
 scripts/build-app.sh --universal --dmg  # 通用二进制 + DMG 安装包
 scripts/test.sh                         # 运行单元测试
+scripts/screenshots.sh                  # 用演示数据重新生成 README 截图
 ```
 
 ### 项目结构

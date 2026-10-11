@@ -20,6 +20,10 @@ enum SettingsKey {
   static let receiveEnabled = "receiveEnabled"
   /// 功能开关：发送（界面与 API）
   static let sendEnabled = "sendEnabled"
+  /// 启动时自动检查更新
+  static let autoCheckUpdates = "autoCheckUpdates"
+  /// 用户选择「跳过」的版本（自动检查时不再提示该版本）
+  static let skippedVersion = "skippedVersion"
 }
 
 /// 全局应用状态：持有所有服务，负责启动、停止和状态汇总
@@ -50,6 +54,12 @@ final class AppModel: ObservableObject {
   @Published private(set) var sendEnabled: Bool
   @Published var todayReceived = 0
   @Published var todayForwarded = 0
+  /// 截图模式下由程序切换的页面（RootView 监听它来切换侧栏选中项）
+  @Published var requestedPage: SidebarItem?
+  /// 正在检查更新
+  @Published var checkingUpdate = false
+  /// 最近一次检查更新的结果说明（显示在「关于」中）
+  @Published var updateStatus: String?
   /// 数据库打开失败时的错误（极少发生）
   @Published var fatalError: String?
 
@@ -58,6 +68,9 @@ final class AppModel: ObservableObject {
   private var permissionTimer: Timer?
 
   private init() {
+    // 截图模式：用临时参数域固定设置，不写入用户偏好
+    if ScreenshotMode.isActive { ScreenshotMode.overrideDefaults() }
+
     // 注册设置默认值
     UserDefaults.standard.register(defaults: [
       SettingsKey.apiEnabled: false,
@@ -72,13 +85,21 @@ final class AppModel: ObservableObject {
       SettingsKey.hideDockIcon: false,
       SettingsKey.receiveEnabled: true,
       SettingsKey.sendEnabled: true,
+      SettingsKey.autoCheckUpdates: true,
     ])
 
     // 打开数据库；失败时退回内存数据库，保证界面可用并提示错误
     var openError: String?
     let db: AppDatabase
     do {
-      db = try AppDatabase.openDefault()
+      if ScreenshotMode.isActive {
+        // 截图模式：内存数据库 + 演示数据，不触碰真实数据
+        let demo = try AppDatabase.inMemory()
+        try ScreenshotMode.seed(demo)
+        db = demo
+      } else {
+        db = try AppDatabase.openDefault()
+      }
     } catch {
       openError = "数据库打开失败：\(error.localizedDescription)"
       db = try! AppDatabase.inMemory()
@@ -101,6 +122,19 @@ final class AppModel: ObservableObject {
 
   /// App 启动后调用一次
   func start() {
+    // 截图模式：只展示界面，不启动任何服务
+    if ScreenshotMode.isActive {
+      ingestStatus = .running
+      fullDiskAccess = .granted
+      automation = .granted
+      messagesRunning = true
+      serverRunning = true
+      updateStatus = "已是最新版本"
+      observeStats()
+      ScreenshotMode.run(model: self)
+      return
+    }
+
     refreshPermissions()
     // 「信息」未运行时在后台启动它（发送和自动化授权都需要它在运行）
     if !Permissions.isMessagesRunning {
@@ -123,6 +157,14 @@ final class AppModel: ObservableObject {
     applyServer()
     observeStats()
     try? database.purge(olderThanDays: defaults.integer(forKey: SettingsKey.retentionDays))
+
+    // 启动 5 秒后静默检查更新（只在发现新版本时弹窗）
+    if defaults.bool(forKey: SettingsKey.autoCheckUpdates) {
+      Task {
+        try? await Task.sleep(nanoseconds: 5_000_000_000)
+        checkForUpdates(userInitiated: false)
+      }
+    }
 
     // 每 5 秒刷新一次权限状态（用户可能在系统设置里刚刚授权）
     permissionTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -148,6 +190,59 @@ final class AppModel: ObservableObject {
     DispatchQueue.global().async {
       _ = Permissions.automation(ask: true)
       Task { @MainActor in AppModel.shared.refreshPermissions() }
+    }
+  }
+
+  // MARK: - 版本更新
+
+  /// 检查更新
+  /// - Parameter userInitiated: 用户手动点击时为 true：无论结果如何都给出反馈，且不受「跳过此版本」影响
+  func checkForUpdates(userInitiated: Bool) {
+    guard !checkingUpdate else { return }
+    checkingUpdate = true
+    if userInitiated { updateStatus = nil }
+    let current = Bundle.main.shortVersion
+    Task {
+      let result = await UpdateChecker.check(currentVersion: current)
+      checkingUpdate = false
+      switch result {
+      case .available(let release):
+        updateStatus = "发现新版本 v\(release.version)"
+        let skipped = defaults.string(forKey: SettingsKey.skippedVersion)
+        if userInitiated || skipped != release.version {
+          presentUpdateAlert(release, current: current)
+        }
+      case .upToDate(let latest):
+        updateStatus = "已是最新版本（GitHub 最新为 v\(latest)）"
+      case .failed(let reason):
+        // 自动检查失败时保持安静，只在手动检查时显示原因
+        if userInitiated { updateStatus = "检查失败：\(reason)" }
+      }
+    }
+  }
+
+  /// 弹窗提示新版本；确认后在浏览器中打开发布页
+  private func presentUpdateAlert(_ release: ReleaseInfo, current: String) {
+    // 隐藏程序坞图标时 App 不在前台，先激活以确保弹窗可见
+    NSApp.activate(ignoringOtherApps: true)
+    let alert = NSAlert()
+    alert.messageText = "发现新版本 v\(release.version)"
+    // 更新说明过长时截断，完整内容在发布页查看
+    let notes = release.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    let preview = notes.count > 600 ? String(notes.prefix(600)) + "…" : notes
+    alert.informativeText =
+      "当前版本 v\(current)，是否前往 GitHub 下载新版本？" + (preview.isEmpty ? "" : "\n\n\(preview)")
+    alert.alertStyle = .informational
+    alert.addButton(withTitle: "前往下载")
+    alert.addButton(withTitle: "以后再说")
+    alert.addButton(withTitle: "跳过此版本")
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+      NSWorkspace.shared.open(release.pageURL)
+    case .alertThirdButtonReturn:
+      defaults.set(release.version, forKey: SettingsKey.skippedVersion)
+    default:
+      break
     }
   }
 
